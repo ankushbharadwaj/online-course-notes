@@ -1,0 +1,217 @@
+---
+title: "intro_to_modern_stats_day_one"
+author: "Ankush Bharadwaj"
+output: html_document
+
+Material from W14: Intro to Modern Statistics with R, held by Dr. Don Vaughn through UCLA's Institute for Quantitative and Computational Biosciences.
+
+Event details linked below:
+https://qcb.ucla.edu/collaboratory-2/workshops/w14-intro-to-modern-statistics/
+---
+Notes:
+
+- "deep understanding of how statistics really works"
+- why conduct exeriments and collect data
+  - determine if results are real
+  - determine if results are meaningful
+  - to establish causal relationships
+  - prove hypothesis
+  - to discover something fundamental about a group
+  
+- questions don't get answered without data
+  - will never have the same samples in group
+  - however, we don't really care about this - will not care about the data really
+  - rather, want to compare the actual populations that the two samples are supposed to represent
+  - from actual population, get data from samples => extrapolate data from samples to population
+  - will never actually observe the population
+  - use statistical inference with data that we have seen to make guess about population distributions
+  - what kind of information do we need to establish some "truth" about the population
+  
+- he keeps mentioning that no one cares about the data, what's more important are the claims you can logically make about the population as a whole
+
+- as sample size gets larger, effect size goes down
+
+- so now, we have sample data => population distribution, but then how do you test if the two distributions are different?
+  - difference in means? t-test tells you if two groups have different means
+  - difference in median? "most reprentative of what I see". when dealing with very skewed data, like income
+  - why don't we use median tests as much? we use means difference becauase we assume everything is a normal distribution, something about being really easy with calculus
+  - can switch to median, which he says he will prove to us as the better test statistic
+  - test statistic - the number of interest, what you're calculating. stuff like the mean if testing difference in mean between two distributions
+  
+- when we find that we have differences in the means, is it meaningful?
+  - we know that there will be differences in means between two samples, but can we generalize this to state that there is a difference in means between the two associated populations?
+  - effect size: magnitude of test statistic. how big is the difference?
+  - when we're doing a hypothesis test, we're comparing the observed effect size with the effect size due to chance
+  - is the effect size due to chance?
+  - testing how different one group is from another group
+
+- "that's all of statistics in 45 minutes. the rest is implementation"
+
+- take data from two groups => combine into data of one group
+  - from there, randomly segment the one group back into two groups
+  - if original groups had 100 each, combine into 200 total samples then randomly draw out 100 into each group
+  - gather test statistic from each random shuffling => each test statistic is the effect due to random chance between the two groups
+  - do this reshuffling some 10,000 times and find the test statistic each time => generate distribution of the effects of random chance 
+  - then you can compare what happened in actual data to what would have happened due to random chance
+  - something about finding p value, called a permutation test
+  
+next file: unpairedPermutationTest.Rmd
+code from unpairedPermutationTest.Rmd for permutation test using difference in means:
+```
+salaries = read.csv("/Users/ankushbharadwaj/Downloads/materials/uclaUscSalaries.csv")   # usually this for Mac
+# C:\Users\donvaughn\downloads\introToModernStats\uclaUscSalaries.csv   # usually this for PC
+
+
+# format the data
+salariesMelted = reshape2::melt(salaries)
+salaries = salariesMelted[c(salariesMelted$variable !="irvine"),]
+colnames(salaries) <- c("school", "salary") # rename variables
+numSamples = nrow(salaries) # how many datapoints do we have?
+
+# find out which rows belong to which schools
+indsUcla = salaries$school=="ucla"
+indsUsc = salaries$school=="usc"
+
+# what is the test statistic on the actual data?
+testStatObserved = mean(salaries$salary[indsUsc]) - mean(salaries$salary[indsUcla])
+
+# what could have happened by chance?
+numResamples = 10000
+testStatisticDistribution = rep(NA,numResamples) # initialize the variable we'll use to store each perm's test stat
+
+for (permNum in 1 : numResamples) {
+  # shuffle the salaries
+ shuffledSalaries = sample(salaries$salary, numSamples, replace = F)
+ uscSalaries = shuffledSalaries[indsUsc]
+ uclaSalaries = shuffledSalaries[indsUcla]
+ 
+ # calculate the test statistic for this permutation
+ testStatForThisPerm = mean( uscSalaries ) - mean( uclaSalaries )
+ 
+ # store the test statistic of this permutation
+ testStatisticDistribution[permNum] = testStatForThisPerm
+}
+
+# how many time did chance give me a larger 'result' than my actual observed data?
+moreExtremeChanceValues = sum(testStatisticDistribution >= abs(testStatObserved)) +
+           sum(testStatisticDistribution <= -abs(testStatObserved))
+# this tells us how many times the random chance had a larger effect than the actual experiments
+# if this happens all the time, the p value would be very small
+# calculate the pvalue, as a fraction
+pval <- moreExtremeChanceValues / numResamples
+
+# print the results
+sprintf("observed effect %g, pval of observed effect %g", testStatObserved, pval)
+
+
+# bounds
+sortedTestStatisticDistribution <- sort(testStatisticDistribution)
+testStatisticLeftBound <- sortedTestStatisticDistribution[.025*numResamples]
+testStatisticRightBound <- sortedTestStatisticDistribution[.975*numResamples]
+
+# plot results
+par(mfrow=c(1,1))
+hist(testStatisticDistribution, 40, xlab = "Test Statistic", main = "Histogram of Null Distribution")
+abline(v=testStatObserved, col="green")
+abline(v=testStatisticLeftBound, col="red")
+abline(v=testStatisticRightBound, col="red")
+```
+code to change to difference in medians:
+```
+salaries = read.csv("/Users/ankushbharadwaj/Downloads/materials/uclaUscSalaries.csv")   # usually this for Mac
+# C:\Users\donvaughn\downloads\introToModernStats\uclaUscSalaries.csv   # usually this for PC
+
+
+# format the data
+salariesMelted = reshape2::melt(salaries)
+salaries = salariesMelted[c(salariesMelted$variable !="irvine"),]
+colnames(salaries) <- c("school", "salary") # rename variables
+numSamples = nrow(salaries) # how many datapoints do we have?
+
+# find out which rows belong to which schools
+indsUcla = salaries$school=="ucla"
+indsUsc = salaries$school=="usc"
+
+# what is the test statistic on the actual data?
+testStatObserved = median(salaries$salary[indsUsc]) - median(salaries$salary[indsUcla])
+
+# what could have happened by chance?
+numResamples = 10000
+testStatisticDistribution = rep(NA,numResamples) # initialize the variable we'll use to store each perm's test stat
+
+for (permNum in 1 : numResamples) {
+  # shuffle the salaries
+ shuffledSalaries = sample(salaries$salary, numSamples, replace = F)
+ uscSalaries = shuffledSalaries[indsUsc]
+ uclaSalaries = shuffledSalaries[indsUcla]
+ 
+ # calculate the test statistic for this permutation
+ testStatForThisPerm = median( uscSalaries ) - median( uclaSalaries )
+ 
+ # store the test statistic of this permutation
+ testStatisticDistribution[permNum] = testStatForThisPerm
+}
+
+# how many time did chance give me a larger 'result' than my actual observed data?
+moreExtremeChanceValues = sum(testStatisticDistribution >= abs(testStatObserved)) +
+           sum(testStatisticDistribution <= -abs(testStatObserved))
+# this tells us how many times the random chance had a larger effect than the actual experiments
+# if this happens all the time, the p value would be very small
+# calculate the pvalue, as a fraction
+pval <- moreExtremeChanceValues / numResamples
+
+# print the results
+sprintf("observed effect %g, pval of observed effect %g", testStatObserved, pval)
+
+
+# bounds
+sortedTestStatisticDistribution <- sort(testStatisticDistribution)
+testStatisticLeftBound <- sortedTestStatisticDistribution[.025*numResamples]
+testStatisticRightBound <- sortedTestStatisticDistribution[.975*numResamples]
+
+# plot results
+par(mfrow=c(1,1))
+hist(testStatisticDistribution, 40, xlab = "Test Statistic", main = "Histogram of Null Distribution")
+abline(v=testStatObserved, col="green")
+abline(v=testStatisticLeftBound, col="red")
+abline(v=testStatisticRightBound, col="red")
+```
+- using medians
+  - tenfold increase in significance when using median instead of mean since we might have been dealing with non normal data
+  - median can be a more appropriate measure => more meaningful results
+  - the reason why this chart looks very noisy is because the median is "ugly", whereas the mean takes into account many values for its final value (by virtue of how it's calculated)
+  - this is why so much of classical statistics is calculus based and is based around mean, because it's easier to deal with
+  
+- what is the p value
+  - probability of getting observed results given there is no effect
+  - P ( data | no effect)
+  - probability of getting data this extreme or more extreme, assuming it's all due to randomness
+  - P (data | only random chance)
+
+- bootstrap
+  - if given a sample, if we find it's mean, can we use this mean and say it's the mean of the population?
+  - report the information of the population with the sample mean and the related confidence intervals
+  - what if you can re-sample and rerun the experiment with new data some 10,000 times
+  - obviously impractical, but could be useful 
+  - instead, let's assume that the sample is an accurate representation of the population distribution
+  - then we can use your own data to bootstrap itself and rerun the experiemnt
+  - say we collected 6 samples for an experiment
+    - assume each observation associated with each sample is equally likely
+    - pretend like each data point is on a 6 sided die
+    - re roll the die 6 times => find the test statistic
+    - resample once again => test statistic => etc
+    - another way of looking at it is sampling with replacement
+  - most bootstraps will have the same test statistic, some will vary though
+  - bootstrap isn't about comparing groups, it's about describing the population a group is from
+  - comparing all these resampled test statistics => find true population test statistic
+  
+- glossary
+  - population distribution: underlying distribution we care about
+  - sampling distribution: data drew from population and used for study
+  - test statistic: what you're calculating from the data and comparing between groups
+  - effect size: magnitude of test statistic
+  - bootstrap: sample with replacement from dataset to re run experiment to characterize variance
+  - permutation: sample without replacement from dataset to shuffle group membership to test significance
+```
+```
+

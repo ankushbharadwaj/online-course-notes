@@ -1,0 +1,74 @@
+---
+title: "unpairedPermutationTest"
+author: "Don Vaughn"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load the data
+salaries = read.csv("/Users/ankushbharadwaj/Downloads/materials/uclaUscSalaries.csv")   # usually this for Mac
+# C:\Users\donvaughn\downloads\introToModernStats\uclaUscSalaries.csv   # usually this for PC
+
+
+# format the data
+salariesMelted = reshape2::melt(salaries)
+salaries = salariesMelted[c(salariesMelted$variable !="irvine"),]
+colnames(salaries) <- c("school", "salary") # rename variables
+numSamples = nrow(salaries) # how many datapoints do we have?
+
+# find out which rows belong to which schools
+indsUcla = salaries$school=="ucla"
+indsUsc = salaries$school=="usc"
+```
+
+
+## Paired Null permutation test
+``` {r unpaired permutation test}
+# print the data
+print(salaries)
+
+# what is the test statistic on the actual data?
+testStatObserved = mean(salaries$salary[indsUsc]) - mean(salaries$salary[indsUcla])
+
+# what could have happened by chance?
+numResamples = 10000
+testStatisticDistribution = rep(NA,numResamples) # initialize the variable we'll use to store each perm's test stat
+
+for (permNum in 1 : numResamples) {
+  # shuffle the salaries
+ shuffledSalaries = sample(salaries$salary, numSamples, replace = F)
+ uscSalaries = shuffledSalaries[indsUsc]
+ uclaSalaries = shuffledSalaries[indsUcla]
+ 
+ # calculate the test statistic for this permutation
+ testStatForThisPerm = mean( uscSalaries ) - mean( uclaSalaries )
+ 
+ # store the test statistic of this permutation
+ testStatisticDistribution[permNum] = testStatForThisPerm
+}
+
+# how many time did chance give me a larger 'result' than my actual observed data?
+moreExtremeChanceValues = sum(testStatisticDistribution >= abs(testStatObserved)) +
+           sum(testStatisticDistribution <= -abs(testStatObserved))
+# this tells us how many times the random chance had a larger effect than the actual experiments
+# if this happens all the time, the p value would be very small
+# calculate the pvalue, as a fraction
+pval <- moreExtremeChanceValues / numResamples
+
+# print the results
+sprintf("observed effect %g, pval of observed effect %g", testStatObserved, pval)
+
+
+# bounds
+sortedTestStatisticDistribution <- sort(testStatisticDistribution)
+testStatisticLeftBound <- sortedTestStatisticDistribution[.025*numResamples]
+testStatisticRightBound <- sortedTestStatisticDistribution[.975*numResamples]
+
+# plot results
+par(mfrow=c(1,1))
+hist(testStatisticDistribution, 40, xlab = "Test Statistic", main = "Histogram of Null Distribution")
+abline(v=testStatObserved, col="green")
+abline(v=testStatisticLeftBound, col="red")
+abline(v=testStatisticRightBound, col="red")
